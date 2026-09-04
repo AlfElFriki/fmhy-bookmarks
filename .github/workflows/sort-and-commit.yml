@@ -4,6 +4,7 @@ on:
   schedule:
     # every 6 hours (extension polls every ~6h according to README)
     - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
