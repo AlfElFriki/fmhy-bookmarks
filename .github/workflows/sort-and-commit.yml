@@ -1,0 +1,49 @@
+name: Sort FMHY bookmarks and commit
+
+on:
+  schedule:
+    # every 6 hours (extension polls every ~6h according to README)
+    - cron: '0 */6 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sort-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Checkout sorter repository
+        uses: actions/checkout@v4
+        with:
+          repository: AlfElFriki/fmhy-bookmarks-sort
+          path: sorter
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+
+      - name: Build & run sorter (produce sorted fmhy_in_bookmarks_sorted.html)
+        run: |
+          # run sorter and write output to repo root as fmhy_in_bookmarks_sorted.html
+          cargo run --release --manifest-path sorter/Cargo.toml -- --online --output fmhy_in_bookmarks_sorted.html
+
+      - name: Show changes
+        run: git --no-pager diff --name-only || true
+
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fmhy_in_bookmarks_sorted.html
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update sorted fmhy bookmarks (automated)"
+            git push
+          else
+            echo "No changes to commit"
+          fi
