@@ -2,32 +2,48 @@ name: Sort FMHY bookmarks and commit
 
 on:
   schedule:
-    # every 6 hours (extension polls every ~6h according to README)
     - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+env:
+  SORTER_VERSION: v0.4.0
+  SORTER_CACHE_DIR: ./.cache/bookmark-sorter
+
 jobs:
   sort-and-commit:
-    # avoid running for commits made by the bot itself (defense-in-depth)
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Download prebuilt sorter binary (release v0.4.0)
+      - name: Restore cached sorter binary
+        uses: actions/cache@v5
+        with:
+          # Key must change when the binary changes; update SORTER_VERSION accordingly
+          key: sorter-binary-${{ env.SORTER_VERSION }}-${{ runner.os }}
+          path: ${{ env.SORTER_CACHE_DIR }}
+
+      - name: Ensure sorter binary is present
         run: |
           set -eux
-          curl -L -o bookmark-sorter \
-            "https://github.com/AlfElFriki/fmhy-bookmarks-sort/releases/download/v0.4.0/bookmark-sorter"
-          chmod +x bookmark-sorter
+          mkdir -p "${SORTER_CACHE_DIR}"
+          if [ ! -f "${SORTER_CACHE_DIR}/bookmark-sorter" ]; then
+            echo "Cache miss: downloading sorter ${SORTER_VERSION}"
+            curl -L -sSf -o "${SORTER_CACHE_DIR}/bookmark-sorter" \
+              "https://github.com/AlfElFriki/fmhy-bookmarks-sort/releases/download/${SORTER_VERSION}/bookmark-sorter"
+            chmod +x "${SORTER_CACHE_DIR}/bookmark-sorter"
+          else
+            echo "Using cached sorter ${SORTER_VERSION}"
+          fi
 
       - name: Run sorter and write fmhy_in_bookmarks_sorted.html
         run: |
-          ./bookmark-sorter --online
+          set -eux
+          "${SORTER_CACHE_DIR}/bookmark-sorter" --online
 
       - name: Show changes
         run: |
