@@ -3,7 +3,7 @@ name: Sort FMHY bookmarks and commit
 on:
   schedule:
     # every 6 hours (extension polls every ~6h according to README)
-    - cron: '0 */6 * * *'
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -11,34 +11,34 @@ permissions:
 
 jobs:
   sort-and-commit:
+    # avoid running for commits made by the bot itself (defense-in-depth)
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4
 
-      - name: Checkout sorter repository
-        uses: actions/checkout@v4
-        with:
-          repository: AlfElFriki/fmhy-bookmarks-sort
-          path: sorter
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          default: true
-
-      - name: Build & run sorter (produce sorted fmhy_in_bookmarks_sorted.html)
+      - name: Download prebuilt sorter binary (release v0.4.0)
         run: |
-          # run sorter and write output to repo root as fmhy_in_bookmarks_sorted.html
-          cargo run --release --manifest-path sorter/Cargo.toml -- --online --output fmhy_in_bookmarks_sorted.html
+          set -eux
+          curl -L -o bookmark-sorter \
+            "https://github.com/AlfElFriki/fmhy-bookmarks-sort/releases/download/v0.4.0/bookmark-sorter"
+          chmod +x bookmark-sorter
+
+      - name: Run sorter and write fmhy_in_bookmarks_sorted.html
+        run: |
+          ./bookmark-sorter --online
 
       - name: Show changes
-        run: git --no-pager diff --name-only || true
+        run: |
+          git status --porcelain || true
+          git --no-pager diff --name-only || true
 
       - name: Commit & push if changed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -eux
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add fmhy_in_bookmarks_sorted.html
